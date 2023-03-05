@@ -11,8 +11,11 @@ from flask_moment import Moment
 from flask_sqlalchemy import SQLAlchemy
 import logging
 from logging import Formatter, FileHandler
+from sqlalchemy import String, cast, func
+from datetime import datetime
 
-from sqlalchemy import String, cast
+from forms import ArtistForm
+
 # from forms import *
 # ----------------------------------------------------------------------------#
 # App Config.
@@ -48,8 +51,14 @@ class Venue(db.Model):
     state = db.Column(db.String(120))
     address = db.Column(db.String(120))
     phone = db.Column(db.String(120))
+    genres = db.Column(db.ARRAY(db.String))
+    website = db.Column(db.String(120))
+    seeking_talent = db.Column(db.Boolean)
+    seeking_description = db.Column(db.String(500))
     image_link = db.Column(db.String(500))
     facebook_link = db.Column(db.String(120))
+    artists = db.relationship(
+        'Artist', secondary=performances, backref=db.backref('venues', lazy=True))
 
     def __repr__(self):
         return '<Venue{}>'.format(self.name)
@@ -61,6 +70,10 @@ class Artist(db.Model):
 
     id = db.Column(db.Integer, primary_key=True)
     name = db.Column(db.String)
+    website = db.Column(db.String(120))
+    genres = db.Column(db.ARRAY(db.String))
+    seeking_description = db.Column(db.String(500))
+    seeking_venue = db.Column(db.Boolean)
     city = db.Column(db.String(120))
     state = db.Column(db.String(120))
     phone = db.Column(db.String(120))
@@ -127,8 +140,29 @@ def venues():
     #         "num_upcoming_shows": 0,
     #     }]
     # }]
+
+    data_venues = db.session.query(Venue.id,
+                                   Venue.name,
+                                   Venue.city,
+                                   Venue.state,
+                                   func.count(performances.c.id).filter(
+                                       performances.c.start_time > datetime.now())
+                                   .label('upcoming_shows')).outerjoin(performances, performances.c.venue_id == Venue.id).group_by(Venue.id).all()
+    places = db.session.query(Venue.city, Venue.state).group_by(
+        Venue.city, Venue.state).all()
+    print('places ', places)
     data = []
+    for i in places:
+        venues = [ve for ve in data_venues if ve.city ==
+                  i.city and ve.state == i.state]
+        data_formated = {
+            "city": i.city,
+            "state": i.state,
+            "venues": venues
+        }
+        data.append(data_formated)
     return render_template('pages/venues.html', areas=data)
+
     # data2 = db.session.query(Venue)
     # print(data2)
     # results = db.session.query(
@@ -512,14 +546,22 @@ def shows():
     #     "start_time": "2035-04-15T20:00:00.000Z"
     # }]
     data3 = []
-    data2 = db.session.query(performances.c.start_time).all()
+    data2 = db.session.query(performances.c.start_time,
+                             performances.c.venue_id, performances.c.artist_id, Venue.name.label(
+                                 'venue_name'),
+                             Artist.name.label('arist_name'), Artist.image_link.label('artist_image_link')).all()
 
     for data in data2:
         dt = {
-            "start_time": str(data.start_time)
+            "start_time": str(data.start_time),
+            "venue_id": str(data.venue_id),
+            "artist_id": str(data.artist_id),
+            "venue_name": data.venue_name,
+            "arist_name": data.arist_name,
+            "artist_image_link": data.artist_image_link,
         }
         data3.append(dt)
-
+    print(data2)
     # result = db.session.query(cast(performances.c.Show.start_time, String),
     #                           performances.c.Show.venue_id, performances.c.Show.artist_id).all()
 
