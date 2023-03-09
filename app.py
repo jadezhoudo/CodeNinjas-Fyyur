@@ -11,10 +11,10 @@ from flask_moment import Moment
 from flask_sqlalchemy import SQLAlchemy
 import logging
 from logging import Formatter, FileHandler
-from sqlalchemy import String, cast, func
+from sqlalchemy import String, cast, func, or_
 from datetime import datetime
 
-from forms import ArtistForm
+from forms import ArtistForm, ShowForm, VenueForm
 
 # from forms import *
 # ----------------------------------------------------------------------------#
@@ -62,7 +62,6 @@ class Venue(db.Model):
 
     def __repr__(self):
         return '<Venue{}>'.format(self.name)
-    # TODO: implement any missing fields, as a database migration using Flask-Migrate
 
 
 class Artist(db.Model):
@@ -80,12 +79,6 @@ class Artist(db.Model):
     genres = db.Column(db.String(120))
     image_link = db.Column(db.String(500))
     facebook_link = db.Column(db.String(120))
-
-    # TODO: implement any missing fields, as a database migration using Flask-Migrate
-# with app.app_context():
-#     db.create_all()
-# TODO Implement Show and Artist models, and complete all model relationships and properties, as a database migration.
-
 # ----------------------------------------------------------------------------#
 # Filters.
 # ----------------------------------------------------------------------------#
@@ -117,30 +110,6 @@ def index():
 
 @app.route('/venues')
 def venues():
-    # TODO: replace with real venues data.
-    #       num_upcoming_shows should be aggregated based on number of upcoming shows per venue.
-    # data = [{
-    #     "city": "San Francisco",
-    #     "state": "CA",
-    #     "venues": [{
-    #         "id": 1,
-    #         "name": "The Musical Hop",
-    #         "num_upcoming_shows": 0,
-    #     }, {
-    #         "id": 3,
-    #         "name": "Park Square Live Music & Coffee",
-    #         "num_upcoming_shows": 1,
-    #     }]
-    # }, {
-    #     "city": "New York",
-    #     "state": "NY",
-    #     "venues": [{
-    #         "id": 2,
-    #         "name": "The Dueling Pianos Bar",
-    #         "num_upcoming_shows": 0,
-    #     }]
-    # }]
-
     data_venues = db.session.query(Venue.id,
                                    Venue.name,
                                    Venue.city,
@@ -150,7 +119,6 @@ def venues():
                                    .label('upcoming_shows')).outerjoin(performances, performances.c.venue_id == Venue.id).group_by(Venue.id).all()
     places = db.session.query(Venue.city, Venue.state).group_by(
         Venue.city, Venue.state).all()
-    print('places ', places)
     data = []
     for i in places:
         venues = [ve for ve in data_venues if ve.city ==
@@ -163,27 +131,24 @@ def venues():
         data.append(data_formated)
     return render_template('pages/venues.html', areas=data)
 
-    # data2 = db.session.query(Venue)
-    # print(data2)
-    # results = db.session.query(
-    #     Venue.city, Venue.state).group_by(Venue.city).all()
-    # print("abc ===> ", results)
-
 
 @app.route('/venues/search', methods=['POST'])
 def search_venues():
-    # TODO: implement search on artists with partial string search. Ensure it is case-insensitive.
-    # seach for Hop should return "The Musical Hop".
-    # search for "Music" should return "The Musical Hop" and "Park Square Live Music & Coffee"
+    search_term = request.form.get('search_term', '')
+    venues = Venue.query.filter(or_(Venue.name.ilike(f'%{search_term}%'), Venue.city.ilike(
+        f'%{search_term}%'), Venue.state.ilike(f'%{search_term}%'))).all()
+    upcoming_show = db.session.query(performances.c.venue_id, func.count(performances.c.id).label('num_upcoming_shows'))\
+        .filter(performances.c.start_time > datetime.now())\
+        .group_by(performances.c.venue_id).all()
     response = {
-        "count": 1,
+        "count": len(venues),
         "data": [{
-            "id": 2,
-            "name": "The Dueling Pianos Bar",
-            "num_upcoming_shows": 0,
-        }]
+            "id": venue.id,
+            "name": venue.name,
+            "num_upcoming_shows": [x.num_upcoming_shows for x in upcoming_show if x.venue_id == venue.id],
+        } for venue in venues]
     }
-    return render_template('pages/search_venues.html', results=response, search_term=request.form.get('search_term', ''))
+    return render_template('pages/search_venues.html', results=response, search_term=search_term)
 
 
 @app.route('/venues/<int:venue_id>')
@@ -267,6 +232,7 @@ def show_venue(venue_id):
         "past_shows_count": 1,
         "upcoming_shows_count": 1,
     }
+
     data = list(filter(lambda d: d['id'] ==
                 venue_id, [data1, data2, data3]))[0]
     return render_template('pages/show_venue.html', venue=data)
@@ -327,18 +293,21 @@ def artists():
 
 @app.route('/artists/search', methods=['POST'])
 def search_artists():
-    # TODO: implement search on artists with partial string search. Ensure it is case-insensitive.
-    # seach for "A" should return "Guns N Petals", "Matt Quevado", and "The Wild Sax Band".
-    # search for "band" should return "The Wild Sax Band".
+    search_term = request.form.get('search_term', '')
+    artists = Artist.query.filter(or_(Artist.name.ilike(f'%{search_term}%'), Artist.city.ilike(
+        f'%{search_term}%'), Artist.state.ilike(f'%{search_term}%'))).all()
+    upcoming_show = db.session.query(performances.c.artist_id, func.count(performances.c.id).label('num_upcoming_shows'))\
+        .filter(performances.c.start_time > datetime.now())\
+        .group_by(performances.c.artist_id).all()
     response = {
-        "count": 1,
+        "count": len(artists),
         "data": [{
-            "id": 4,
-            "name": "Guns N Petals",
-            "num_upcoming_shows": 0,
-        }]
+            "id": artist.id,
+            "name": artist.name,
+            "num_upcoming_shows": [x.num_upcoming_shows for x in upcoming_show if x.artist_id == artist.id],
+        } for artist in artists]
     }
-    return render_template('pages/search_artists.html', results=response, search_term=request.form.get('search_term', ''))
+    return render_template('pages/search_venues.html', results=response, search_term=search_term)
 
 
 @app.route('/artists/<int:artist_id>')
@@ -507,73 +476,22 @@ def create_artist_submission():
 
 @app.route('/shows')
 def shows():
-    # displays list of shows at /shows
-    # TODO: replace with real shows data.
-    # data = [{
-    #     "venue_id": 1,
-    #     "venue_name": "The Musical Hop",
-    #     "artist_id": 4,
-    #     "artist_name": "Guns N Petals",
-    #     "artist_image_link": "https://images.unsplash.com/photo-1549213783-8284d0336c4f?ixlib=rb-1.2.1&ixid=eyJhcHBfaWQiOjEyMDd9&auto=format&fit=crop&w=300&q=80",
-    #     "start_time": "2019-05-21T21:30:00.000Z"
-    # }, {
-    #     "venue_id": 3,
-    #     "venue_name": "Park Square Live Music & Coffee",
-    #     "artist_id": 5,
-    #     "artist_name": "Matt Quevedo",
-    #     "artist_image_link": "https://images.unsplash.com/photo-1495223153807-b916f75de8c5?ixlib=rb-1.2.1&ixid=eyJhcHBfaWQiOjEyMDd9&auto=format&fit=crop&w=334&q=80",
-    #     "start_time": "2019-06-15T23:00:00.000Z"
-    # }, {
-    #     "venue_id": 3,
-    #     "venue_name": "Park Square Live Music & Coffee",
-    #     "artist_id": 6,
-    #     "artist_name": "The Wild Sax Band",
-    #     "artist_image_link": "https://images.unsplash.com/photo-1558369981-f9ca78462e61?ixlib=rb-1.2.1&ixid=eyJhcHBfaWQiOjEyMDd9&auto=format&fit=crop&w=794&q=80",
-    #     "start_time": "2035-04-01T20:00:00.000Z"
-    # }, {
-    #     "venue_id": 3,
-    #     "venue_name": "Park Square Live Music & Coffee",
-    #     "artist_id": 6,
-    #     "artist_name": "The Wild Sax Band",
-    #     "artist_image_link": "https://images.unsplash.com/photo-1558369981-f9ca78462e61?ixlib=rb-1.2.1&ixid=eyJhcHBfaWQiOjEyMDd9&auto=format&fit=crop&w=794&q=80",
-    #     "start_time": "2035-04-08T20:00:00.000Z"
-    # }, {
-    #     "venue_id": 3,
-    #     "venue_name": "Park Square Live Music & Coffee",
-    #     "artist_id": 6,
-    #     "artist_name": "The Wild Sax Band",
-    #     "artist_image_link": "https://images.unsplash.com/photo-1558369981-f9ca78462e61?ixlib=rb-1.2.1&ixid=eyJhcHBfaWQiOjEyMDd9&auto=format&fit=crop&w=794&q=80",
-    #     "start_time": "2035-04-15T20:00:00.000Z"
-    # }]
-    data3 = []
-    data2 = db.session.query(performances.c.start_time,
-                             performances.c.venue_id, performances.c.artist_id, Venue.name.label(
-                                 'venue_name'),
-                             Artist.name.label('arist_name'), Artist.image_link.label('artist_image_link')).all()
-
-    for data in data2:
+    data = []
+    dataQuery = db.session.query(performances.c.venue_id, Venue.name.label('venue_name'), Artist.name.label('arist_name'), performances.c.artist_id, performances.c.start_time,
+                                 Artist.image_link.label('artist_image_link')).join(Venue, performances.c.venue_id == Venue.id).join(Artist, performances.c.artist_id == Artist.id).all()
+    print(dataQuery)
+    for d in dataQuery:
+        print(d)
         dt = {
-            "start_time": str(data.start_time),
-            "venue_id": str(data.venue_id),
-            "artist_id": str(data.artist_id),
-            "venue_name": data.venue_name,
-            "arist_name": data.arist_name,
-            "artist_image_link": data.artist_image_link,
+            "start_time": str(d.start_time),
+            "venue_id": str(d.venue_id),
+            "artist_id": str(d.artist_id),
+            "venue_name": d.venue_name,
+            "arist_name": d.arist_name,
+            "artist_image_link": d.artist_image_link,
         }
-        data3.append(dt)
-    print(data2)
-    # result = db.session.query(cast(performances.c.Show.start_time, String),
-    #                           performances.c.Show.venue_id, performances.c.Show.artist_id).all()
-
-    # for element in data2:
-    #     element_start_time = element.start_time.strftime(
-    #         "%Y-%m-%d %H:%M:%S")
-    #     # element.start_time = element_start_time
-    #     setattr(element, "start_time", element_start_time)
-    #     print('sssss ===> ', element_start_time)
-
-    print("data2 ====> ", data3)
-    return render_template('pages/shows.html', shows=data3)
+        data.append(dt)
+    return render_template('pages/shows.html', shows=data)
 
 
 @app.route('/shows/create')
