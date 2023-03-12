@@ -150,32 +150,38 @@ def create_venue_form():
 
 @app.route('/venues/create', methods=['POST'])
 def create_venue_submission():
-    try:
-        new_venue = Venue(
-            name=request.form["name"],
-            city=request.form["city"],
-            state=request.form["state"],
-            address=request.form["address"],
-            phone=request.form["phone"],
-            genres=request.form.getlist("genres"),
-            image_link=request.form["image_link"],
-            facebook_link=request.form["facebook_link"],
-            website=request.form["website_link"],
-            seeking_talent=True if "seeking_talent" in request.form else False,
-            seeking_description=request.form["seeking_description"],
-        )
-        db.session.add(new_venue)
-        db.session.commit()
-        flash('Venue ' + request.form['name'] + ' was successfully listed!')
-    except Exception as exception:
-        db.session.rollback()
-        print(exception)
-        flash('An error occurred. Venue ' +
-              request.form['name'] + ' could not be listed.')
-    finally:
-        db.session.close()
+    form = VenueForm(request.form)
+    if form.validate():
+        try:
+            new_venue = Venue(
+                name=request.form["name"],
+                city=request.form["city"],
+                state=request.form["state"],
+                address=request.form["address"],
+                phone=request.form["phone"],
+                genres=request.form.getlist("genres"),
+                image_link=request.form["image_link"],
+                facebook_link=request.form["facebook_link"],
+                website=request.form["website_link"],
+                seeking_talent=True if "seeking_talent" in request.form else False,
+                seeking_description=request.form["seeking_description"],
+            )
+            db.session.add(new_venue)
+            db.session.commit()
+            flash('Venue ' + request.form['name'] +
+                  ' was successfully listed!')
+        except Exception as exception:
+            db.session.rollback()
+            print(exception)
+            flash('An error occurred. Venue ' +
+                  request.form['name'] + ' could not be listed.')
+        finally:
+            db.session.close()
 
-    return render_template('pages/home.html')
+        return render_template('pages/home.html')
+    else:
+        flash('Venue ' + request.form['name'] + ' was failed listed!')
+        return render_template('pages/home.html')
 
 
 @app.route('/venues/<venue_id>', methods=['DELETE'])
@@ -184,8 +190,9 @@ def delete_venue(venue_id):
         venue = Venue.query.filter_by(id=venue_id).delete()
         db.session.commit()
         flash('Venue was successfully deleted!')
-    except:
+    except Exception as ex:
         db.session.rollback()
+        print(ex)
         flash('An error occurred. Venue could not be deleted.')
     finally:
         db.session.close()
@@ -430,26 +437,31 @@ def create_shows():
 
 @app.route('/shows/create', methods=['POST'])
 def create_show_submission():
-    try:
-        venue_id = request.form.get('venue_id')
-        artist_id = request.form.get('artist_id')
-        start_time = datetime.strptime(
-            request.form.get('start_time'), '%Y-%m-%d %H:%M:%S')
-        show = performances.insert().values(
-            venue_id=venue_id,
-            artist_id=artist_id,
-            start_time=start_time
-        )
-        db.session.execute(show)
-        db.session.commit()
-        flash('Show was successfully listed!')
-    except Exception as e:
-        print(str(e))
-        flash('An error occurred. Show could not be listed.')
-        db.session.rollback()
-    finally:
-        db.session.close()
-    return render_template('pages/home.html')
+    form = ShowForm(request.form)
+    if form.validate():
+        try:
+            venue_id = request.form.get('venue_id')
+            artist_id = request.form.get('artist_id')
+            start_time = datetime.strptime(
+                request.form.get('start_time'), '%Y-%m-%d %H:%M:%S')
+            show = performances.insert().values(
+                venue_id=venue_id,
+                artist_id=artist_id,
+                start_time=start_time
+            )
+            db.session.execute(show)
+            db.session.commit()
+            flash('Show was successfully listed!')
+        except Exception as e:
+            print(str(e))
+            flash('An error occurred. Show could not be listed.')
+            db.session.rollback()
+        finally:
+            db.session.close()
+        return render_template('pages/home.html')
+    else:
+        flash('Show ' + request.form['name'] + ' was failed listed!')
+        return render_template('pages/home.html')
 
 
 @app.errorhandler(404)

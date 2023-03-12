@@ -38,8 +38,9 @@ class Venue(db.Model):
     seeking_description = db.Column(db.String(500))
     image_link = db.Column(db.String(500))
     facebook_link = db.Column(db.String(120))
-    artists = db.relationship(
-        'Artist', secondary=performances, backref=db.backref('venues', lazy=True))
+    shows = db.relationship(
+        'Artist', secondary=performances, backref=db.backref('venue', lazy=True,
+                                                             cascade='all, delete'))
 
     def __repr__(self):
         return '<Venue{}>'.format(self.name)
@@ -59,3 +60,6 @@ class Artist(db.Model):
     image_link = db.Column(db.String(500))
     facebook_link = db.Column(db.String(120))
     genres = db.Column(db.ARRAY(db.String))
+    shows = db.relationship(
+        'Venue', secondary=performances, backref=db.backref('artist', lazy=True,
+                                                            cascade='all, delete'))
