@@ -390,13 +390,7 @@ def create_artist_submission():
             db.session.close()
         return render_template('pages/home.html')
     else:
-        print('error')  # show error
-        mess = []
-        for field, errors in form.errors.items():
-            for error in errors:
-                mess.append(f"field {field}, error {error}")
-        flash('Artist ' + request.form['name'] +
-              f' was failed listed! {",".join(mess)}')
+        flash('Artist ' + request.form['name'] + ' was failed listed!')
         return render_template('pages/home.html')
 
 #  Shows
@@ -406,8 +400,12 @@ def create_artist_submission():
 @app.route('/shows')
 def shows():
     data = []
-    dataQuery = db.session.query(performances.c.venue_id, Venue.name.label('venue_name'), Artist.name.label('arist_name'), performances.c.artist_id, performances.c.start_time,
-                                 Artist.image_link.label('artist_image_link')).join(Venue, performances.c.venue_id == Venue.id).join(Artist, performances.c.artist_id == Artist.id).all()
+    dataQuery = db.session.query(performances.c.venue_id,
+                                 Venue.name.label('venue_name'),
+                                 Artist.name.label('arist_name'),
+                                 performances.c.artist_id, performances.c.start_time,
+                                 Artist.image_link.label('artist_image_link')).join(Venue, performances.c.venue_id == Venue.id)\
+        .join(Artist, performances.c.artist_id == Artist.id).all()
     print(dataQuery)
     for d in dataQuery:
         print(d)
